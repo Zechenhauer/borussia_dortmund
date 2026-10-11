@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🟡⚫ BVB</title>
+    <title>🟡⚫ Borussia Dortmund</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%23fde100%22/><text x=%2250%22 y=%2270%22 font-size=%2260%22 text-anchor=%22middle%22>⚽</text></svg>">
     <!-- Supabase Client Bibliothek laden -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -550,7 +550,7 @@
     </div>
     <div class="subtitle">1. Bundesliga — Live & Cloud-Daten</div>
     <div class="meta-info">
-        <span>🟡⚫ Schwarz-Gelbe Web-App für den Bürgermeister von deinem Nachbarn</span>
+        <span>🟡⚫ Schwarz-Gelbe Web-App für den Nachbarn</span>
         <span id="apiStatus" style="color: #3fb950;">● Live-Aktualisierung aktiv</span>
         <div class="live-badge" id="liveIndicatorBadge"><span class="live-dot"></span> BVB LIVE LÄUFT</div>
     </div>
@@ -579,10 +579,10 @@
             </div>
         </div>
 
-        <!-- Kachel 3: Formkurve (Letzte 10 Spiele) -->
+        <!-- Kachel 3: Formkurve (Letzte Spiele) -->
         <div class="dash-card">
             <div class="dash-header">
-                <span>📈 Formkurve (Letzte 10 Spiele)</span>
+                <span>📈 Formkurve (Letzte Spiele)</span>
             </div>
             <div class="dash-content" id="formContainer" style="display: flex; align-items: center; min-height: 35px;">
                 <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Ermittle Form...</span>
@@ -780,7 +780,6 @@
         document.getElementById('historyFactText').textContent = historyFacts[currentFactIndex];
     }
 
-    // Genau die 3 gewünschten Bilder für die Diashow
     const slides = [
         { url: "https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg", name: "Borussia Dortmund Logo" },
         { url: "https://lhusylpjnujlqomougmg.supabase.co/storage/v1/object/public/vereinslogos/bvb%20fans.png", name: "BVB Fans" },
@@ -858,7 +857,6 @@
         await loadTable();
         await loadMatchday(currentMatchday);
 
-        // Automatische Hintergrund-Aktualisierung alle 60 Sekunden
         setInterval(async () => {
             try {
                 await loadTable();
@@ -981,7 +979,8 @@
         let homeAwayText = document.getElementById('homeAwayStatsText');
         
         let results = [];
-        for (let d = 1; d <= maxMatchday; d++) {
+        let startD = Math.max(1, currentMatchday - 10);
+        for (let d = startD; d < currentMatchday; d++) {
             try {
                 let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
                 if (res.ok) {
@@ -1026,7 +1025,7 @@
                 if (isHome) {
                     if (bG > oG) hW++; else if (bG === oG) hD++; else hL++;
                 } else {
-                    if (bG > oG) aW++; else if (bG === oG) aD++; else aL++;
+                    if (bG > oG) aW++; else if (bG === aD) aD++; else aL++;
                 }
             }
         });
