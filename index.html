@@ -579,10 +579,10 @@
             </div>
         </div>
 
-        <!-- Kachel 3: Formkurve (Letzte Spiele) -->
+        <!-- Kachel 3: Formkurve (Letzte 10 Spiele) -->
         <div class="dash-card">
             <div class="dash-header">
-                <span>📈 Formkurve (Letzte Spiele)</span>
+                <span>📈 Formkurve (Letzte 10 Spiele)</span>
             </div>
             <div class="dash-content" id="formContainer" style="display: flex; align-items: center; min-height: 35px;">
                 <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Ermittle Form...</span>
@@ -814,7 +814,6 @@
     const leagueShortcut = 'bl1';
     let seasonYear = '2026';
     let nextMatchDateObj = null;
-    let initialLoadDone = false; // Verhindert, dass der Live-Check den manuell gewählten Spieltag überschreibt
 
     async function initApp() {
         if (supabaseClient) {
@@ -856,15 +855,15 @@
         }
 
         await loadTable();
+        await loadFormAndStats(); // Formkurve einmalig beim Start laden
         await loadMatchday(currentMatchday);
-        initialLoadDone = true;
 
-        // Automatische Hintergrund-Aktualisierung alle 60 Sekunden (lädt nur aktuellen Spieltag & Tabelle neu, überschreibt manuellen Spieltag nicht)
+        // Hintergrund-Aktualisierung (nur Tabelle & Countdown)
         setInterval(async () => {
             try {
                 await loadTable();
             } catch(err) {
-                console.error("Hintergrund-Aktualisierungsfehler (Tabelle):", err);
+                console.error("Hintergrund-Aktualisierungsfehler:", err);
             }
         }, 60000);
 
@@ -913,7 +912,7 @@
         }
     }
 
-    async function extractDashboardData(matchdayMatches) {
+    function extractDashboardData(matchdayMatches) {
         let bvbMatch = null;
         let hasLiveMatches = false;
 
@@ -949,31 +948,6 @@
                 updateCountdown();
             }
         }
-
-        if (currentMatchday > 1) {
-            try {
-                let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${currentMatchday - 1}`);
-                if (res.ok) {
-                    let prevMatches = await res.json();
-                    if (Array.isArray(prevMatches)) {
-                        let lastMatch = prevMatches.find(m => 
-                            m.team1.teamName.toLowerCase().includes('dortmund') || m.team2.teamName.toLowerCase().includes('dortmund')
-                        );
-                        if (lastMatch && lastMatch.matchIsFinished) {
-                            let hName = lastMatch.team1.teamName;
-                            let aName = lastMatch.team2.teamName;
-                            let resObj = lastMatch.matchResults.find(r => r.resultName === 'Endergebnis') || lastMatch.matchResults[lastMatch.matchResults.length - 1];
-                            let hG = resObj ? resObj.pointsTeam1 : 0;
-                            let aG = resObj ? resObj.pointsTeam2 : 0;
-                            document.getElementById('lastMatchText').textContent = `${hName} vs ${aName}`;
-                            document.getElementById('lastMatchScoreBadge').textContent = `${hG} : ${aG}`;
-                        }
-                    }
-                }
-            } catch(e) {}
-        }
-
-        loadFormAndStats();
     }
 
     async function loadFormAndStats() {
@@ -981,8 +955,7 @@
         let homeAwayText = document.getElementById('homeAwayStatsText');
         
         let results = [];
-        let startD = Math.max(1, currentMatchday - 10);
-        for (let d = startD; d < currentMatchday; d++) {
+        for (let d = 1; d < currentMatchday; d++) {
             try {
                 let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
                 if (res.ok) {
