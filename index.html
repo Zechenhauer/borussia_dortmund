@@ -233,7 +233,7 @@
             white-space: nowrap;
         }
 
-        /* POPUP MODAL FÜR LEGENDEN */
+        /* POPUP MODAL FÜR LEGENDEN & BVB SPIELPLAN */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -254,6 +254,12 @@
             box-shadow: 0 10px 30px rgba(253, 225, 0, 0.3);
             position: relative;
             text-align: center;
+        }
+        .modal-box-large {
+            max-width: 750px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
         }
         .modal-title {
             color: var(--bvb-yellow);
@@ -283,8 +289,38 @@
             font-weight: bold;
             cursor: pointer;
             transition: background 0.2s;
+            margin-top: 10px;
         }
         .modal-close-btn:hover { background: var(--bvb-bright-yellow); }
+
+        /* BVB SPIELPLAN LISTE IM POPUP */
+        .bvb-schedule-list {
+            overflow-y: auto;
+            max-height: 55vh;
+            margin-top: 10px;
+            text-align: left;
+            padding-right: 5px;
+        }
+        .bvb-schedule-list::-webkit-scrollbar { width: 6px; }
+        .bvb-schedule-list::-webkit-scrollbar-thumb { background: var(--bvb-yellow); border-radius: 3px; }
+
+        .bvb-schedule-item {
+            background: rgba(253, 225, 0, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .bvb-schedule-item.is-finished {
+            border-left: 3px solid var(--win-color);
+        }
+        .bvb-schedule-item.is-upcoming {
+            border-left: 3px solid var(--bvb-yellow);
+        }
 
         /* LEGENDEN LISTE STYLING */
         .legends-list {
@@ -532,6 +568,18 @@
         </div>
     </div>
 
+    <!-- POPUP MODAL FÜR ALLE BVB-SPIELE -->
+    <div class="modal-overlay" id="bvbScheduleModal" onclick="closeBvbScheduleModal(event)">
+        <div class="modal-box modal-box-large" onclick="event.stopPropagation()">
+            <div class="modal-title">🟡⚫ BVB Saison-Spielplan</div>
+            <div class="modal-subtitle">Alle 34 Spieltage im Überblick</div>
+            <div class="bvb-schedule-list" id="bvbScheduleListContent">
+                <div class="loading-text">Lade BVB-Saisonspiele...</div>
+            </div>
+            <button class="modal-close-btn" onclick="closeBvbScheduleModal()">Schließen</button>
+        </div>
+    </div>
+
     <!-- SLIDESHOW -->
     <div class="banner-wrapper">
         <div class="slideshow-container">
@@ -557,10 +605,11 @@
 
     <!-- DASHBOARD GRID -->
     <div class="dashboard-grid">
-        <!-- Kachel 1: Nächstes Spiel mit Countdown -->
+        <!-- Kachel 1: Nächstes Spiel mit Countdown & BVB-Spiele Button -->
         <div class="dash-card">
             <div class="dash-header">
                 <span>⏳ Nächstes Spiel</span>
+                <button class="action-link" onclick="openBvbScheduleModal()">Alle Spiele</button>
             </div>
             <div class="dash-content" id="nextMatchText">Wird geladen...</div>
             <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
@@ -579,10 +628,10 @@
             </div>
         </div>
 
-        <!-- Kachel 3: Formkurve (Letzte 10 Spiele) -->
+        <!-- Kachel 3: Formkurve (Letzte Spiele) -->
         <div class="dash-card">
             <div class="dash-header">
-                <span>📈 Formkurve (Letzte 10 Spiele)</span>
+                <span>📈 Formkurve (Letzte Spiele)</span>
             </div>
             <div class="dash-content" id="formContainer" style="display: flex; align-items: center; min-height: 35px;">
                 <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Ermittle Form...</span>
@@ -755,6 +804,7 @@
 
     let teamLogos = {};
     let teamApiIcons = {};
+    let cachedBvbSchedule = [];
 
     function openLegendModal(name, role, desc) {
         document.getElementById('modalLegendName').textContent = name;
@@ -764,6 +814,84 @@
     }
     function closeLegendModal() {
         document.getElementById('legendModal').style.display = 'none';
+    }
+
+    async function openBvbScheduleModal() {
+        document.getElementById('bvbScheduleModal').style.display = 'flex';
+        let listContainer = document.getElementById('bvbScheduleListContent');
+        
+        if (cachedBvbSchedule.length > 0) {
+            renderBvbScheduleList(cachedBvbSchedule);
+            return;
+        }
+
+        listContainer.innerHTML = `<div class="loading-text">Lade alle BVB-Saisonspiele...</div>`;
+        try {
+            let bvbMatches = [];
+            // In Blöcken laden, um den Browser/API zu schonen
+            for (let d = 1; d <= 34; d++) {
+                let res = await fetch(`https://api.openligadb.de/getmatchdata/\${leagueShortcut}/${seasonYear}/${d}`);
+                if (res.ok) {
+                    let matches = await res.json();
+                    if (Array.isArray(matches)) {
+                        let match = matches.find(m => m.team1.teamName.toLowerCase().includes('dortmund') || m.team2.teamName.toLowerCase().includes('dortmund'));
+                        if (match) {
+                            bvbMatches.push({ matchday: d, data: match });
+                        }
+                    }
+                }
+            }
+            cachedBvbSchedule = bvbMatches;
+            renderBvbScheduleList(bvbMatches);
+        } catch (e) {
+            listContainer.innerHTML = `<div class="loading-text" style="color:var(--loss-color);">Fehler beim Laden des Spielplans.</div>`;
+        }
+    }
+
+    function renderBvbScheduleList(schedule) {
+        let listContainer = document.getElementById('bvbScheduleListContent');
+        if (schedule.length === 0) {
+            listContainer.innerHTML = `<div class="loading-text">Keine Spiele gefunden.</div>`;
+            return;
+        }
+
+        let html = '';
+        schedule.forEach(item => {
+            let m = item.data;
+            let dateObj = new Date(m.matchDateTime);
+            let dateStr = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+            let timeStr = dateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            
+            let statusClass = m.matchIsFinished ? 'is-finished' : 'is-upcoming';
+            let scoreStr = `<span style="color:var(--text-muted);">${dateStr},${timeStr} Uhr</span>`;
+
+            if (m.matchIsFinished) {
+                let res = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
+                if (res) {
+                    scoreStr = `<strong>${res.pointsTeam1} :${res.pointsTeam2}</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(Endstand)</span>`;
+                }
+            } else if (m.matchResults && m.matchResults.length > 0) {
+                let res = m.matchResults[0];
+                scoreStr = `<span style="color:#3fb950; font-weight:bold;">LIVE ${res.pointsTeam1}:${res.pointsTeam2}</span>`;
+            }
+
+            html += `
+                <div class="bvb-schedule-item \${statusClass}">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--bvb-yellow); font-weight: bold;">Spieltag \${item.matchday}</div>
+                        <div style="font-weight: bold; margin-top: 3px; color: #ffffff;">${m.team1.teamName} vs${m.team2.teamName}</div>
+                    </div>
+                    <div style="text-align: right; font-size: 0.85rem;">\${scoreStr}</div>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    }
+
+    function closeBvbScheduleModal(event) {
+        if (!event || event.target.id === 'bvbScheduleModal') {
+            document.getElementById('bvbScheduleModal').style.display = 'none';
+        }
     }
 
     const historyFacts = [
@@ -855,10 +983,9 @@
         }
 
         await loadTable();
-        await loadFormAndStats(); // Formkurve einmalig beim Start laden
+        await loadDashboardFast(currentMatchday);
         await loadMatchday(currentMatchday);
 
-        // Hintergrund-Aktualisierung (nur Tabelle & Countdown)
         setInterval(async () => {
             try {
                 await loadTable();
@@ -912,102 +1039,124 @@
         }
     }
 
-    function extractDashboardData(matchdayMatches) {
-        let bvbMatch = null;
-        let hasLiveMatches = false;
+    async function loadDashboardFast(matchday) {
+        try {
+            let allBvbMatches = [];
+            for (let d = 1; d <= matchday; d++) {
+                let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
+                if (res.ok) {
+                    let matches = await res.json();
+                    if (Array.isArray(matches)) {
+                        let bM = matches.find(m => m.team1.teamName.toLowerCase().includes('dortmund') || m.team2.teamName.toLowerCase().includes('dortmund'));
+                        if (bM) {
+                            allBvbMatches.push({ matchday: d, data: bM });
+                        }
+                    }
+                }
+            }
 
+            // Nächstes Spiel ab aktuellem Spieltag suchen falls nötig
+            let nextMatchFound = false;
+            let nextText = document.getElementById('nextMatchText');
+            
+            for (let d = matchday; d <= 34; d++) {
+                let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
+                if (res.ok) {
+                    let matches = await res.json();
+                    let bM = matches.find(m => (m.team1.teamName.toLowerCase().includes('dortmund') || m.team2.teamName.toLowerCase().includes('dortmund')) && !m.matchIsFinished);
+                    if (bM) {
+                        nextMatchDateObj = new Date(bM.matchDateTime);
+                        nextText.textContent = `${bM.team1.teamName} vs ${bM.team2.teamName}`;
+                        updateCountdown();
+                        nextMatchFound = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!nextMatchFound) {
+                nextText.textContent = `Keine anstehenden Spiele`;
+                document.getElementById('countdownBadge').textContent = `-- : -- : -- : --`;
+            }
+
+            // Letztes Pflichtspiel ermitteln
+            let finishedItems = allBvbMatches.filter(item => item.data.matchIsFinished);
+            let lastItem = finishedItems.length > 0 ? finishedItems[finishedItems.length - 1] : null;
+            if (lastItem) {
+                let m = lastItem.data;
+                let resObj = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
+                let hG = resObj ? resObj.pointsTeam1 : 0;
+                let aG = resObj ? resObj.pointsTeam2 : 0;
+                document.getElementById('lastMatchText').textContent = `${m.team1.teamName} vs ${m.team2.teamName}`;
+                document.getElementById('lastMatchScoreBadge').textContent = `${hG} : ${aG}`;
+            } else {
+                document.getElementById('lastMatchText').textContent = `Kein Beendet-Eintrag`;
+                document.getElementById('lastMatchScoreBadge').textContent = `- : -`;
+            }
+
+            // Formkurve rendern
+            let formContainer = document.getElementById('formContainer');
+            if (finishedItems.length > 0) {
+                let last10 = finishedItems.slice(-10);
+                let formHtml = `<div class="form-container">`;
+                last10.forEach(item => {
+                    let m = item.data;
+                    let isHome = m.team1.teamName.toLowerCase().includes('dortmund');
+                    let res = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
+                    if (res) {
+                        let bG = isHome ? res.pointsTeam1 : res.pointsTeam2;
+                        let oG = isHome ? res.pointsTeam2 : res.pointsTeam1;
+                        if (bG > oG) formHtml += `<div class="form-dot form-s" title="Sieg">S</div>`;
+                        else if (bG === oG) formHtml += `<div class="form-dot form-u" title="Unentschieden">U</div>`;
+                        else formHtml += `<div class="form-dot form-n" title="Niederlage">N</div>`;
+                    }
+                });
+                formHtml += `</div>`;
+                formContainer.innerHTML = formHtml;
+            } else {
+                formContainer.innerHTML = `<span style="font-size:0.8rem; color:var(--text-muted);">Noch keine beendeten Spiele</span>`;
+            }
+
+            // Heim- und Auswärtsbilanz berechnen
+            let hW = 0, hD = 0, hL = 0, aW = 0, aD = 0, aL = 0;
+            finishedItems.forEach(item => {
+                let m = item.data;
+                let isHome = m.team1.teamName.toLowerCase().includes('dortmund');
+                let res = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
+                if (res) {
+                    let bG = isHome ? res.pointsTeam1 : res.pointsTeam2;
+                    let oG = isHome ? res.pointsTeam2 : res.pointsTeam1;
+                    if (isHome) {
+                        if (bG > oG) hW++; else if (bG === oG) hD++; else hL++;
+                    } else {
+                        if (bG > oG) aW++; else if (bG === oG) aD++; else aL++;
+                    }
+                }
+            });
+
+            let homeAwayText = document.getElementById('homeAwayStatsText');
+            homeAwayText.innerHTML = `
+                🏠 Heim: <strong>${hW}S - ${hD}U - ${hL}N</strong> (${hW*3+hD} Pkt)<br>
+                ✈️ Auswärts: <strong>${aW}S - ${aD}U - ${aL}N</strong> (${aW*3+aD} Pkt)
+            `;
+
+        } catch (e) {
+            console.error("Fehler beim Dashboard-Laden:", e);
+        }
+    }
+
+    function extractDashboardData(matchdayMatches) {
+        let hasLiveMatches = false;
         if (Array.isArray(matchdayMatches)) {
             matchdayMatches.forEach(match => {
-                let isBVB = match.team1.teamName.toLowerCase().includes('dortmund') || match.team2.teamName.toLowerCase().includes('dortmund');
-                if (isBVB) {
-                    bvbMatch = match;
-                }
                 let isCurrentlyLive = !match.matchIsFinished && match.matchResults && match.matchResults.length > 0;
                 if (isCurrentlyLive) hasLiveMatches = true;
             });
         }
-
         let liveBadge = document.getElementById('liveIndicatorBadge');
         if (liveBadge) {
             liveBadge.style.display = hasLiveMatches ? 'flex' : 'none';
         }
-
-        let nextText = document.getElementById('nextMatchText');
-        let countdownBadge = document.getElementById('countdownBadge');
-
-        if (bvbMatch && !bvbMatch.matchIsFinished) {
-            let hName = bvbMatch.team1.teamName;
-            let aName = bvbMatch.team2.teamName;
-            nextMatchDateObj = new Date(bvbMatch.matchDateTime);
-            nextText.textContent = `${hName} vs ${aName}`;
-            updateCountdown();
-        } else {
-            nextText.textContent = `Spieltag ${currentMatchday} Partie`;
-            if (bvbMatch) {
-                nextMatchDateObj = new Date(bvbMatch.matchDateTime);
-                updateCountdown();
-            }
-        }
-    }
-
-    async function loadFormAndStats() {
-        let formContainer = document.getElementById('formContainer');
-        let homeAwayText = document.getElementById('homeAwayStatsText');
-        
-        let results = [];
-        for (let d = 1; d < currentMatchday; d++) {
-            try {
-                let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
-                if (res.ok) {
-                    let matches = await res.json();
-                    let bMatch = matches.find(m => (m.team1.teamName.toLowerCase().includes('dortmund') || m.team2.teamName.toLowerCase().includes('dortmund')) && m.matchIsFinished);
-                    if (bMatch) {
-                        results.push(bMatch);
-                    }
-                }
-            } catch(e) {}
-        }
-
-        if (results.length === 0) {
-            formContainer.innerHTML = `<span style="font-size:0.8rem; color:var(--text-muted);">Noch keine beendeten Spiele</span>`;
-            homeAwayText.innerHTML = `Heim: 0S - 0U - 0N (0 Pkt)<br>Auswärts: 0S - 0U - 0N (0 Pkt)`;
-            return;
-        }
-
-        let last10 = results.slice(-10);
-        let formHtml = `<div class="form-container">`;
-        last10.forEach(m => {
-            let isHome = m.team1.teamName.toLowerCase().includes('dortmund');
-            let res = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
-            if (res) {
-                let bG = isHome ? res.pointsTeam1 : res.pointsTeam2;
-                let oG = isHome ? res.pointsTeam2 : res.pointsTeam1;
-                if (bG > oG) formHtml += `<div class="form-dot form-s" title="Sieg">S</div>`;
-                else if (bG === oG) formHtml += `<div class="form-dot form-u" title="Unentschieden">U</div>`;
-                else formHtml += `<div class="form-dot form-n" title="Niederlage">N</div>`;
-            }
-        });
-        formHtml += `</div>`;
-        formContainer.innerHTML = formHtml;
-
-        let hW=0, hD=0, hL=0, aW=0, aD=0, aL=0;
-        results.forEach(m => {
-            let isHome = m.team1.teamName.toLowerCase().includes('dortmund');
-            let res = m.matchResults.find(r => r.resultName === 'Endergebnis') || m.matchResults[m.matchResults.length - 1];
-            if (res) {
-                let bG = isHome ? res.pointsTeam1 : res.pointsTeam2;
-                let oG = isHome ? res.pointsTeam2 : res.pointsTeam1;
-                if (isHome) {
-                    if (bG > oG) hW++; else if (bG === oG) hD++; else hL++;
-                } else {
-                    if (bG > oG) aW++; else if (bG === aD) aD++; else aL++;
-                }
-            }
-        });
-        homeAwayText.innerHTML = `
-            🏠 Heim: <strong>${hW}S - ${hD}U - ${hL}N</strong> (${hW*3+hD} Pkt)<br>
-            ✈️ Auswärts: <strong>${aW}S - ${aD}U - ${aL}N</strong> (${aW*3+aD} Pkt)
-        `;
     }
 
     function renderBVBMatchdayScorers(matches) {
