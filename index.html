@@ -814,6 +814,7 @@
     const leagueShortcut = 'bl1';
     let seasonYear = '2026';
     let nextMatchDateObj = null;
+    let initialLoadDone = false; // Verhindert, dass der Live-Check den manuell gewählten Spieltag überschreibt
 
     async function initApp() {
         if (supabaseClient) {
@@ -856,13 +857,14 @@
 
         await loadTable();
         await loadMatchday(currentMatchday);
+        initialLoadDone = true;
 
+        // Automatische Hintergrund-Aktualisierung alle 60 Sekunden (lädt nur aktuellen Spieltag & Tabelle neu, überschreibt manuellen Spieltag nicht)
         setInterval(async () => {
             try {
                 await loadTable();
-                await loadMatchday(currentMatchday);
             } catch(err) {
-                console.error("Hintergrund-Aktualisierungsfehler:", err);
+                console.error("Hintergrund-Aktualisierungsfehler (Tabelle):", err);
             }
         }, 60000);
 
