@@ -550,7 +550,7 @@
     </div>
     <div class="subtitle">1. Bundesliga — Live & Cloud-Daten</div>
     <div class="meta-info">
-        <span>🟡⚫ Schwarz-Gelbe Web-App für den Bürgermeister</span>
+        <span>🟡⚫ Schwarz-Gelbe Web-App für den Bürgermeister von deinem Nachbarn</span>
         <span id="apiStatus" style="color: #3fb950;">● Live-Aktualisierung aktiv</span>
         <div class="live-badge" id="liveIndicatorBadge"><span class="live-dot"></span> BVB LIVE LÄUFT</div>
     </div>
@@ -981,7 +981,6 @@
         let homeAwayText = document.getElementById('homeAwayStatsText');
         
         let results = [];
-        // Alle gespielten Spieltage bis zum aktuellen durchgehen
         for (let d = 1; d <= maxMatchday; d++) {
             try {
                 let res = await fetch(`https://api.openligadb.de/getmatchdata/${leagueShortcut}/${seasonYear}/${d}`);
@@ -1001,7 +1000,6 @@
             return;
         }
 
-        // Formkurve: Letzte 10 Spiele
         let last10 = results.slice(-10);
         let formHtml = `<div class="form-container">`;
         last10.forEach(m => {
