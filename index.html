@@ -315,12 +315,8 @@
             align-items: center;
             font-size: 0.85rem;
         }
-        .bvb-schedule-item.is-finished {
-            border-left: 3px solid var(--win-color);
-        }
-        .bvb-schedule-item.is-upcoming {
-            border-left: 3px solid var(--bvb-yellow);
-        }
+        .bvb-schedule-item.is-finished { border-left: 3px solid var(--win-color); }
+        .bvb-schedule-item.is-upcoming { border-left: 3px solid var(--bvb-yellow); }
 
         /* LEGENDEN LISTE STYLING */
         .legends-list {
@@ -439,6 +435,26 @@
             gap: 10px;
         }
 
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .header-action-btn {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            color: var(--bvb-dark);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .header-action-btn:hover { background: rgba(0, 0, 0, 0.35); }
+
         .table-legend {
             display: flex;
             flex-wrap: wrap;
@@ -553,6 +569,51 @@
             padding: 20px;
             font-style: italic;
         }
+
+        /* ADMIN BEREICH */
+        .admin-toggle-wrapper {
+            text-align: right;
+            margin-top: 15px;
+        }
+        .admin-toggle-btn {
+            background: transparent;
+            border: 1px dashed var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .admin-toggle-btn:hover {
+            color: var(--bvb-yellow);
+            border-color: var(--bvb-yellow);
+        }
+
+        .admin-card {
+            background: #050505;
+            border: 1px solid var(--bvb-yellow);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .btn {
+            background: var(--bvb-yellow);
+            color: var(--bvb-dark);
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            width: 100%;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: var(--bvb-bright-yellow); }
     </style>
 </head>
 <body>
@@ -598,7 +659,7 @@
     </div>
     <div class="subtitle">1. Bundesliga — Live & Cloud-Daten</div>
     <div class="meta-info">
-        <span>🟡⚫ Schwarz-Gelbe Web-App für den Nachbarn</span>
+        <span>🟡⚫ Schwarz-Gelbe Web-App</span>
         <span id="apiStatus" style="color: #3fb950;">● Live-Aktualisierung aktiv</span>
         <div class="live-badge" id="liveIndicatorBadge"><span class="live-dot"></span> BVB LIVE LÄUFT</div>
     </div>
@@ -714,7 +775,13 @@
 
     <!-- SPIELTAGS-TABELLE -->
     <div class="section-box">
-        <div class="section-header" id="matchdayTableHeader">Spieltag --</div>
+        <div class="section-header">
+            <span id="matchdayTableHeader">Spieltag --</span>
+            <div class="header-actions">
+                <button class="header-action-btn" onclick="requestPushPermission()">🔔 Push-Alarm</button>
+                <button class="header-action-btn" onclick="loadMatchday(currentMatchday)">🔄 Aktualisieren</button>
+            </div>
+        </div>
         <div class="matchday-controls">
             <button class="matchday-btn" onclick="changeMatchday(-1)">◀ Vorheriger</button>
             <strong id="matchdayDisplay" style="color: var(--bvb-yellow); font-size: 1.1rem;">Spieltag --</strong>
@@ -735,6 +802,20 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- ADMIN BEREICH -->
+    <div class="admin-card" id="adminCard">
+        <div style="font-weight: bold; color: var(--bvb-yellow); margin-bottom: 12px; text-transform: uppercase; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>✏️ Admin-Testbereich</span>
+            <span style="font-size: 0.7rem; color: #3fb950;">● Admin-Modus Aktiv</span>
+        </div>
+        <button class="btn" style="background: #238636; color: #fff;" onclick="sendTestPush()">🚀 Test-Push Benachrichtigung senden</button>
+        <button class="btn" style="background: var(--bvb-yellow); color: #0b0f19;" onclick="simulateBvbGoal()">⚡ BVB-Tor simulieren (Test)</button>
+    </div>
+
+    <div class="admin-toggle-wrapper">
+        <button class="admin-toggle-btn" onclick="toggleAdminMode()">⚙️ Admin-Zugang</button>
     </div>
 
     <!-- TORSCHÜTZEN -->
@@ -802,9 +883,13 @@
         console.error("Supabase Init Fehler:", e);
     }
 
+    const ADMIN_PIN = "1909";
+    let isAdmin = false;
+
     let teamLogos = {};
     let teamApiIcons = {};
     let cachedBvbSchedule = [];
+    let previousBvbScores = {};
 
     function openLegendModal(name, role, desc) {
         document.getElementById('modalLegendName').textContent = name;
@@ -814,6 +899,135 @@
     }
     function closeLegendModal() {
         document.getElementById('legendModal').style.display = 'none';
+    }
+
+    // VAPID Public Key Helper für Base64-Konvertierung
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Push Benachrichtigungen aktivieren
+    async function requestPushPermission() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            alert("Push-Benachrichtigungen werden von diesem Browser leider nicht unterstützt.");
+            return;
+        }
+        
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                alert("Die Berechtigung für Benachrichtigungen wurde verweigert.");
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.register('./sw.js');
+            await registration.ready;
+
+            const publicVapidKey = 'BAsnfWgySLti5LzulXfN-xI-x7UDV32LO98YXgg1qdoRY1E1Tl05QPgCvOMgfwe80cSv_K7336-dhJTgBkHUI70';
+            
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+            });
+
+            const p256dh = subscription.getKey('p256dh') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))) : '';
+            const auth = subscription.getKey('auth') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth')))) : '';
+
+            const { error } = await supabaseClient.from('push_subscriptions').upsert({
+                endpoint: subscription.endpoint,
+                p256dh: p256dh,
+                auth: auth
+            }, { onConflict: 'endpoint' });
+
+            if (error) {
+                console.error("Supabase Fehlerdetails:", error);
+                alert("Fehler in Supabase: " + error.message);
+            } else {
+                alert("Push-Alarm erfolgreich aktiviert! Dein Gerät ist jetzt registriert.");
+            }
+
+        } catch (error) {
+            console.error('Fehler bei der Push-Registrierung:', error);
+            alert("Fehler beim Aktivieren der Benachrichtigung: " + error.message);
+        }
+    }
+
+    // Test-Push an die Supabase Edge Function senden
+    async function sendTestPush() {
+        try {
+            const targetUrl = SUPABASE_URL + '/functions/v1/send-push';
+            const response = await fetch(targetUrl, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: "🟡⚫ BVB Test-Tor-Alarm!",
+                    body: "Das Test-Tor für Borussia Dortmund wurde erfolgreich ausgelöst!"
+                })
+            });
+
+            const textResponse = await response.text();
+            if (response.ok) {
+                alert("Test-Push erfolgreich ausgelöst! Gerät(e) sollten benachrichtigt werden.");
+            } else {
+                alert("Fehler von der Edge Function: " + textResponse);
+            }
+        } catch (e) {
+            alert("Netzwerkfehler: " + e.message);
+        }
+    }
+
+    // Automatischer Push bei BVB-Tor INKL. Torschütze und Minute
+    async function triggerBvbGoalPush(home, away, hScore, aScore, scorerName = '', minute = '') {
+        try {
+            let detail = scorerName ? 'Tor durch ' + scorerName : "Tor!";
+            if (minute) {
+                detail += ' (' + minute + '. Min)';
+            }
+
+            const targetUrl = SUPABASE_URL + '/functions/v1/send-push';
+            await fetch(targetUrl, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: '🟡⚫ TOR FÜR DORTMUND! (' + hScore + ':' + aScore + ')',
+                    body: home + ' vs ' + away + ' — ' + detail
+                })
+            });
+            console.log('BVB-Tor-Push ausgelöst: ' + detail);
+        } catch (e) {
+            console.error("Fehler beim BVB-Tor-Push:", e);
+        }
+    }
+
+    // BVB-Tor manuell simulieren (Test-Button mit Torschütze)
+    async function simulateBvbGoal() {
+        await triggerBvbGoalPush("Borussia Dortmund", "FC Bayern München", 1, 0, "Serhou Guirassy", "21");
+        alert("Simuliertes BVB-Tor mit Torschütze gesendet!");
+    }
+
+    function toggleAdminMode() {
+        const adminCard = document.getElementById('adminCard');
+        if (isAdmin) {
+            isAdmin = false;
+            adminCard.style.display = 'none';
+            return;
+        }
+        let enteredPin = prompt("Bitte Admin-PIN eingeben:");
+        if (enteredPin === ADMIN_PIN) {
+            isAdmin = true;
+            adminCard.style.display = 'block';
+        } else if (enteredPin !== null) {
+            alert("Falsche PIN!");
+        }
     }
 
     async function openBvbScheduleModal() {
@@ -828,7 +1042,6 @@
         listContainer.innerHTML = `<div class="loading-text">Lade alle BVB-Saisonspiele...</div>`;
         try {
             let bvbMatches = [];
-            // In Blöcken laden, um den Browser/API zu schonen
             for (let d = 1; d <= 34; d++) {
                 let res = await fetch(`https://api.openligadb.de/getmatchdata/\${leagueShortcut}/${seasonYear}/${d}`);
                 if (res.ok) {
@@ -1055,7 +1268,6 @@
                 }
             }
 
-            // Nächstes Spiel ab aktuellem Spieltag suchen falls nötig
             let nextMatchFound = false;
             let nextText = document.getElementById('nextMatchText');
             
@@ -1079,7 +1291,6 @@
                 document.getElementById('countdownBadge').textContent = `-- : -- : -- : --`;
             }
 
-            // Letztes Pflichtspiel ermitteln
             let finishedItems = allBvbMatches.filter(item => item.data.matchIsFinished);
             let lastItem = finishedItems.length > 0 ? finishedItems[finishedItems.length - 1] : null;
             if (lastItem) {
@@ -1094,7 +1305,6 @@
                 document.getElementById('lastMatchScoreBadge').textContent = `- : -`;
             }
 
-            // Formkurve rendern
             let formContainer = document.getElementById('formContainer');
             if (finishedItems.length > 0) {
                 let last10 = finishedItems.slice(-10);
@@ -1117,7 +1327,6 @@
                 formContainer.innerHTML = `<span style="font-size:0.8rem; color:var(--text-muted);">Noch keine beendeten Spiele</span>`;
             }
 
-            // Heim- und Auswärtsbilanz berechnen
             let hW = 0, hD = 0, hL = 0, aW = 0, aD = 0, aL = 0;
             finishedItems.forEach(item => {
                 let m = item.data;
@@ -1325,25 +1534,44 @@
             }
             let scorersHtml = apiScorers.length > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">${apiScorers.join('<br>')}</div>` : "";
 
-            if (match.matchIsFinished) {
-                let homeGoals = 0, awayGoals = 0;
-                if (match.matchResults && match.matchResults.length > 0) {
-                    let res = match.matchResults.find(r => r.resultName === 'Endergebnis') || match.matchResults[match.matchResults.length - 1];
+            let homeGoals = 0, awayGoals = 0;
+            let hasLiveOrFinishedResult = false;
+
+            if (match.matchResults && match.matchResults.length > 0) {
+                let res = match.matchResults.find(r => r.resultName === 'Endergebnis' || r.resultName === 'Halbzeitergebnis') || match.matchResults[match.matchResults.length - 1];
+                if (res) {
                     homeGoals = res.pointsTeam1;
                     awayGoals = res.pointsTeam2;
+                    hasLiveOrFinishedResult = true;
                 }
+            }
+
+            // --- AUTOMATISCHE TOR-ERKENNUNG FÜR BVB MIT TORSCHÜTZE & MINUTE ---
+            if (isBVB && hasLiveOrFinishedResult) {
+                let matchId = 'bvb_' + match.matchID;
+                let prev = previousBvbScores[matchId];
+                let bvbCurrentGoals = homeName.toLowerCase().includes('dortmund') ? homeGoals : awayGoals;
+                
+                if (prev !== undefined) {
+                    let bvbPrevGoals = homeName.toLowerCase().includes('dortmund') ? prev.home : prev.away;
+                    if (bvbCurrentGoals > bvbPrevGoals) {
+                        let lastGoalObj = (match.goals && match.goals.length > 0) ? match.goals[match.goals.length - 1] : null;
+                        let scorer = lastGoalObj ? lastGoalObj.goalGetterName : '';
+                        let min = lastGoalObj ? lastGoalObj.matchMinute : '';
+
+                        triggerBvbGoalPush(homeName, awayName, homeGoals, awayGoals, scorer, min);
+                    }
+                }
+                previousBvbScores[matchId] = { home: homeGoals, away: awayGoals };
+            }
+
+            if (match.matchIsFinished) {
                 scoreDisplay = `<strong>${homeGoals} : ${awayGoals}</strong> <span style="font-size:0.7rem; color:var(--text-muted);">(Endstand)</span>${scorersHtml}`;
             } else if (match.goals && match.goals.length > 0) {
                 let lastGoal = match.goals[match.goals.length - 1];
                 scoreDisplay = `<span style="color:#3fb950; font-weight:bold;">LIVE ${lastGoal.scoreTeam1}:${lastGoal.scoreTeam2}</span>${scorersHtml}`;
             } else if (now >= dateObj && !match.matchIsFinished) {
-                let hGoals = 0, aGoals = 0;
-                if (match.matchResults && match.matchResults.length > 0) {
-                    let res = match.matchResults.find(r => r.resultName === 'Halbzeitergebnis' || r.resultName === 'Endergebnis') || match.matchResults[0];
-                    hGoals = res.pointsTeam1;
-                    aGoals = res.pointsTeam2;
-                }
-                scoreDisplay = `<span style="color:#3fb950; font-weight:bold;">LIVE ${hGoals}:${aGoals}</span>${scorersHtml}`;
+                scoreDisplay = `<span style="color:#3fb950; font-weight:bold;">LIVE ${homeGoals}:${awayGoals}</span>${scorersHtml}`;
             }
 
             let homeContent = getTeamHtml(homeName, homeIcon, true);
