@@ -732,7 +732,7 @@
                     <div class="legend-item-link" onclick="openLegendModal('Karl-Heinz Riedle („Air“ Riedle)', 'Helden von München 1997', 'Doppeltorschütze im legendären Champions-League-Finale 1997 gegen Juventus Turin.')">
                         <span>Karl-Heinz Riedle</span> <span style="color:var(--bvb-yellow);">➔</span>
                     </div>
-                    <div class="legend-item-link" onclick="openLegendModal('Lars Ricken', 'Torschütze des Jahrhunderts', 'Unvergessen sein genialer Lupfer zum 3:1 im Champions-League-Finale 1997 nur Sekunden nach seiner Einwechslung.')">
+                    <div class="legend-item-link" onclick="openLegendModal('Lars Ricken', 'Torschütze des Jahrhunderts', 'Unvergessen sein genialer Lupfer zum 3:1 im Champions-League-Finale 1997 gegen Juventus Turin nur Sekunden nach seiner Einwechslung.')">
                         <span>Lars Ricken</span> <span style="color:var(--bvb-yellow);">➔</span>
                     </div>
                     <div class="legend-item-link" onclick="openLegendModal('Ottmar Hitzfeld', 'Der General & Meistertrainer', 'Führte Borussia Dortmund 1995 und 1996 zur Deutschen Meisterschaft und 1997 zum Champions-League-Sieg.')">
@@ -912,7 +912,7 @@
         return outputArray;
     }
 
-    // HIER AUF DIE NEUE BVB-TABELLE GEÄNDERT:
+    // Push-Benachrichtigungen für die BVB-Tabelle (push_subscriptions_bvb)
     async function requestPushPermission() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             alert("Push-Benachrichtigungen werden von diesem Browser leider nicht unterstützt.");
@@ -939,7 +939,7 @@
             const p256dh = subscription.getKey('p256dh') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))) : '';
             const auth = subscription.getKey('auth') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth')))) : '';
 
-            // Geändert zu push_subscriptions_bvb:
+            // Speichern in push_subscriptions_bvb:
             const { error } = await supabaseClient.from('push_subscriptions_bvb').upsert({
                 endpoint: subscription.endpoint,
                 p256dh: p256dh,
@@ -959,6 +959,7 @@
         }
     }
 
+    // Test-Push spezifisch für die BVB-Tabelle
     async function sendTestPush() {
         try {
             const targetUrl = SUPABASE_URL + '/functions/v1/send-push';
@@ -967,6 +968,7 @@
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    table: 'push_subscriptions_bvb',
                     title: "🟡⚫ BVB Test-Tor-Alarm!",
                     body: "Das Test-Tor für Borussia Dortmund wurde erfolgreich ausgelöst!"
                 })
@@ -974,7 +976,7 @@
 
             const textResponse = await response.text();
             if (response.ok) {
-                alert("Test-Push erfolgreich ausgelöst! Gerät(e) sollten benachrichtigt werden.");
+                alert("Test-Push für Borussia Dortmund erfolgreich ausgelöst!");
             } else {
                 alert("Fehler von der Edge Function: " + textResponse);
             }
@@ -996,6 +998,7 @@
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    table: 'push_subscriptions_bvb',
                     title: '🟡⚫ TOR FÜR DORTMUND! (' + hScore + ':' + aScore + ')',
                     body: home + ' vs ' + away + ' — ' + detail
                 })
@@ -1577,7 +1580,7 @@
             if (awayName.toLowerCase().includes('dortmund')) awayContent = `<span class="bvb-highlight">${awayContent}</span>`;
 
             tr.innerHTML = `
-                <td style="font-size: 0.8rem; color: #ffffff; vertical-align: top;">${dateStr} — ${timeStr}</td>
+                <td style="font-size: 0.8rem; color: #ffffff; vertical-align: top;">${dateStr} — ${timeStr} Uhr</td>
                 <td style="text-align: right; vertical-align: top;">Heim: ${homeContent}</td>
                 <td style="text-align: center; vertical-align: top;">${scoreDisplay}</td>
                 <td style="vertical-align: top;">Gast: ${awayContent}</td>
