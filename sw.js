@@ -1,5 +1,6 @@
+// Service Worker ohne festes Logo (verwendet Standard-System-Symbol)
 self.addEventListener('push', function(event) {
-    let data = { title: 'Fußball-Alarm', body: 'Es gibt ein neues Update!' };
+    let data = { title: '⚽ Fußball-Alarm', body: 'Es gibt ein neues Update!' };
     if (event.data) {
         try {
             data = event.data.json();
@@ -10,9 +11,8 @@ self.addEventListener('push', function(event) {
 
     const options = {
         body: data.body,
-        icon: 'https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg',
-        badge: 'https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg',
         vibrate: [200, 100, 200]
+        // icon und badge wurden entfernt, damit keine alten Logos hängen bleiben
     };
 
     event.waitUntil(
