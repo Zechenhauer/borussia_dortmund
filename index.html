@@ -901,7 +901,6 @@
         document.getElementById('legendModal').style.display = 'none';
     }
 
-    // VAPID Public Key Helper für Base64-Konvertierung
     function urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -913,7 +912,7 @@
         return outputArray;
     }
 
-    // Push Benachrichtigungen aktivieren
+    // HIER AUF DIE NEUE BVB-TABELLE GEÄNDERT:
     async function requestPushPermission() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             alert("Push-Benachrichtigungen werden von diesem Browser leider nicht unterstützt.");
@@ -940,7 +939,8 @@
             const p256dh = subscription.getKey('p256dh') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))) : '';
             const auth = subscription.getKey('auth') ? btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth')))) : '';
 
-            const { error } = await supabaseClient.from('push_subscriptions').upsert({
+            // Geändert zu push_subscriptions_bvb:
+            const { error } = await supabaseClient.from('push_subscriptions_bvb').upsert({
                 endpoint: subscription.endpoint,
                 p256dh: p256dh,
                 auth: auth
@@ -950,7 +950,7 @@
                 console.error("Supabase Fehlerdetails:", error);
                 alert("Fehler in Supabase: " + error.message);
             } else {
-                alert("Push-Alarm erfolgreich aktiviert! Dein Gerät ist jetzt registriert.");
+                alert("Push-Alarm für Borussia Dortmund erfolgreich aktiviert! Dein Gerät ist jetzt registriert.");
             }
 
         } catch (error) {
@@ -959,7 +959,6 @@
         }
     }
 
-    // Test-Push an die Supabase Edge Function senden
     async function sendTestPush() {
         try {
             const targetUrl = SUPABASE_URL + '/functions/v1/send-push';
@@ -984,7 +983,6 @@
         }
     }
 
-    // Automatischer Push bei BVB-Tor INKL. Torschütze und Minute
     async function triggerBvbGoalPush(home, away, hScore, aScore, scorerName = '', minute = '') {
         try {
             let detail = scorerName ? 'Tor durch ' + scorerName : "Tor!";
@@ -1008,7 +1006,6 @@
         }
     }
 
-    // BVB-Tor manuell simulieren (Test-Button mit Torschütze)
     async function simulateBvbGoal() {
         await triggerBvbGoalPush("Borussia Dortmund", "FC Bayern München", 1, 0, "Serhou Guirassy", "21");
         alert("Simuliertes BVB-Tor mit Torschütze gesendet!");
@@ -1546,7 +1543,6 @@
                 }
             }
 
-            // --- AUTOMATISCHE TOR-ERKENNUNG FÜR BVB MIT TORSCHÜTZE & MINUTE ---
             if (isBVB && hasLiveOrFinishedResult) {
                 let matchId = 'bvb_' + match.matchID;
                 let prev = previousBvbScores[matchId];
