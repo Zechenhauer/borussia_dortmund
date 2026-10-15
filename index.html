@@ -291,7 +291,6 @@
         .modal-body::-webkit-scrollbar { width: 6px; }
         .modal-body::-webkit-scrollbar-thumb { background: var(--bvb-yellow); border-radius: 3px; }
 
-        /* VERBESSERTE LESBARKEIT IM SPIELE-MODAL */
         .bayern-badge-win {
             background: #1b4d22;
             color: #5ef176;
@@ -380,21 +379,19 @@
         }
         tr:hover { background-color: rgba(253, 225, 0, 0.05); }
 
-        tr.rank-first td {
-            background: var(--accent-green);
-            color: #3fb950;
-            font-weight: bold;
-        }
-        tr.rank-last td {
-            background: var(--accent-yellow);
-            color: #e3b341;
-        }
+        /* TABELLEN-ZONEN (FARBLICHE MARKIERUNGEN ENSPRECHEND DER LEGENDE) */
+        tr.cl-zone td { background: rgba(35, 134, 54, 0.2) !important; border-top: 1px solid rgba(35, 134, 54, 0.3); border-bottom: 1px solid rgba(35, 134, 54, 0.3); }
+        tr.el-zone td { background: rgba(51, 133, 255, 0.2) !important; border-top: 1px solid rgba(51, 133, 255, 0.3); border-bottom: 1px solid rgba(51, 133, 255, 0.3); }
+        tr.ecl-zone td { background: rgba(158, 106, 3, 0.25) !important; border-top: 1px solid rgba(158, 106, 3, 0.35); border-bottom: 1px solid rgba(158, 106, 3, 0.35); }
+        tr.relegation-zone td { background: rgba(227, 179, 64, 0.25) !important; border-top: 1px solid rgba(227, 179, 64, 0.35); border-bottom: 1px solid rgba(227, 179, 64, 0.35); }
+        tr.relegation-direct-zone td { background: rgba(180, 40, 40, 0.25) !important; border-top: 1px solid rgba(180, 40, 40, 0.35); border-bottom: 1px solid rgba(180, 40, 40, 0.35); }
+
         tr.bvb-team-row td {
             font-weight: bold;
             color: var(--bvb-yellow);
-            background: rgba(253, 225, 0, 0.15);
-            border-top: 1px solid rgba(253, 225, 0, 0.5);
-            border-bottom: 1px solid rgba(253, 225, 0, 0.5);
+            background: rgba(253, 225, 0, 0.25) !important;
+            border-top: 1px solid rgba(253, 225, 0, 0.6) !important;
+            border-bottom: 1px solid rgba(253, 225, 0, 0.6) !important;
         }
 
         .stats-grid {
@@ -590,7 +587,6 @@
         <div class="section-header">
             <span>Borussia Dortmund — Saison-Auswertung</span>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <!-- NEU: Farbton des Torschützen-Buttons angepasst, damit er sich vom gelben Header abhebt -->
                 <button class="btn-modal-open" onclick="openLeagueScorersModal()" style="background: #11141d; color: var(--bvb-yellow); border: 2px solid var(--bvb-yellow);">⚽ Torschützenliste</button>
                 <button class="btn-modal-open" onclick="openBvbMatchesModal()">📅 Alle Spiele</button>
             </div>
@@ -818,20 +814,6 @@
     ];
     let currentSlideIndex = 0;
     let slideInterval;
-
-    const legendenInfos = {
-        "Alfred Preißler": "Alfred „Aki“ Preißler ist der legendäre BVB-Stürmer der Nachkriegszeit. Von ihm stammt das berühmte Fußballer-Zitat: „Grau is’ im Leben alle Theorie – entscheidend auf’m Platz ist!“",
-        "Michael Zorc": "Michael „Susi“ Zorc prägte den BVB über Jahrzehnte als Rekordspieler auf dem Platz und später als Sportdirektor in den goldenen Meisterjahren.",
-        "Stefan Reuter": "Stefan Reuter war einer der torgefährlichsten Verteidiger und eine absolute Stütze der erfolgreichen 90er-Jahre-Mannschaft des BVB.",
-        "Matthias Sammer": "Matthias Sammer wurde 1996 zu Europas Fußballer des Jahres gekürt und führte den BVB als genialer Libero zur Champions-League-Krone 1997.",
-        "Karl-Heinz Riedle": "Karl-Heinz „Air“ Riedle ist unvergessen als Doppeltorschütze im legendären Champions-League-Finale 1997 gegen Juventus Turin.",
-        "Lars Ricken": "Lars Ricken schrieb mit seinem genialen Lupfer zum 3:1 im Champions-League-Finale 1997 gegen Juventus Turin (nur Sekunden nach seiner Einwechslung) deutsche Fußballgeschichte.",
-        "Ottmar Hitzfeld": "Ottmar Hitzfeld führte Borussia Dortmund 1995 und 1996 zur Deutschen Meisterschaft und 1997 zum sensationellen Champions-League-Sieg.",
-        "Jürgen Klopp": "Jürgen Klopp prägte mit Vollgasfußball, zwei Deutschen Meisterschaften (2011, 2012) und dem DFB-Pokalsieg 2012 eine ganze Schwarz-Gelbe Ära.",
-        "Sebastian Kehl": "Sebastian Kehl führte den BVB als absoluter Kämpfer und Kapitän zu den historischen Meistertiteln unter Jürgen Klopp.",
-        "Roman Weidenfeller": "Roman Weidenfeller stand über 16 Jahre lang als unumstrittene Nummer 1 im BVB-Kasten und wurde mehrfacher Meister sowie Publikumsliebling.",
-        "Marco Reus": "Marco Reus ist das echte Dortmunder Eigengewächs, langjähriger Kapitän und die Identifikationsfigur der Schwarz-Gelben mit über 400 Einsätzen."
-    };
 
     function openLegendModal(name, role, desc) {
         document.getElementById('legendModalTitle').textContent = "⭐ " + name;
@@ -1573,6 +1555,7 @@
             let tr = document.createElement('tr');
             let rank = idx + 1;
             
+            // Korrekte Zonen-Zuordnung gemäß Legende
             if (rank >= 1 && rank <= 4) tr.classList.add('cl-zone');
             else if (rank === 5) tr.classList.add('el-zone');
             else if (rank === 6) tr.classList.add('ecl-zone');
