@@ -110,6 +110,51 @@
         .slide-prev { left: 10px; }
         .slide-next { right: 10px; }
 
+        /* TICKER-LAUFBAND OBEN */
+        .ticker-wrapper {
+            background: var(--bvb-dark-card);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--bvb-yellow);
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            font-size: 0.85rem;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .ticker-text {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 75s linear infinite;
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+
+        .ticker-text:hover {
+            animation-play-state: paused;
+        }
+
+        .ticker-bvb-match {
+            background: rgba(253, 225, 0, 0.2);
+            border: 1px solid var(--bvb-yellow);
+            color: var(--bvb-yellow);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 0 4px;
+        }
+
         .title-row {
             display: flex;
             align-items: center;
@@ -558,6 +603,19 @@
         <div class="slide-caption" id="slideCaption">Borussia Dortmund</div>
     </div>
 
+    <!-- TICKER-LAUFBAND OBEN -->
+    <div class="ticker-wrapper">
+        <div style="display: flex; align-items: center; gap: 8px; margin-right: 16px; flex-shrink: 0; z-index: 10; background: var(--bvb-dark-card); padding-right: 12px; border-right: 1px solid var(--border-color);">
+            <span id="tickerStatusIcon" class="live-dot"></span>
+            <span id="tickerTitle" style="font-weight: bold; color: var(--bvb-yellow); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px;">Bundesliga Ticker:</span>
+        </div>
+        <div style="overflow: hidden; width: 100%;">
+            <div id="tickerContent" class="ticker-text">
+                Lade Spielstände und Ergebnisse...
+            </div>
+        </div>
+    </div>
+
     <div class="title-row">
         <img src="https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg" alt="BVB Logo" class="header-logo">
         <h2>Borussia <span>Dortmund</span></h2>
@@ -601,8 +659,8 @@
             <div class="dash-card-content" id="topScorersWidget">Wird berechnet...</div>
         </div>
         <div class="dash-card">
-            <div class="dash-card-title">🏟️ Heim vs. Auswärts</div>
-            <div class="dash-card-content" id="homeAwayWidget">Heim: 0S - 0U - 0N (0 Pkt)<br>Auswärts: 0S - 0U - 0N (0 Pkt)</div>
+            <div class="dash-card-title">🔥 Form-König (letzte 5 Spiele)</div>
+            <div class="dash-card-content" id="formKingWidget">Wird berechnet...</div>
         </div>
         <div class="dash-card">
             <div class="dash-card-title">⭐ BVB-Legenden (Ehrenkabine)</div>
@@ -879,7 +937,6 @@
     let isInitialized = false;
     let nextMatchDateTime = null;
     let previousEspnScores = {};
-    let sentGoalEvents = {};
 
     const matchdayFridays = {
         1: "2026-08-28", 2: "2026-09-04", 3: "2026-09-11", 4: "2026-09-18", 5: "2026-10-09",
@@ -957,12 +1014,22 @@
         }
     }
 
-    async function triggerGoalPush(home, away, hScore, aScore, scorerText = "") {
-        let goalKey = `${home}_${away}_${hScore}_${aScore}`;
-        if (sentGoalEvents[goalKey]) return;
-        sentGoalEvents[goalKey] = true;
-
+    async function triggerGoalPush(matchId, home, away, hScore, aScore, scorerText = "") {
         try {
+            let { data: existing } = await supabaseClient
+                .from('send_goals_bvb')
+                .select('*')
+                .eq('match_id', matchId)
+                .eq('home_score', hScore)
+                .eq('away_score', aScore)
+                .maybeSingle();
+
+            if (existing) return;
+
+            await supabaseClient
+                .from('send_goals_bvb')
+                .upsert({ match_id: matchId, home_score: hScore, away_score: aScore }, { onConflict: 'match_id' });
+
             let bodyText = `${home} vs ${away} — Spielstand: ${hScore}:${aScore}`;
             if (scorerText) bodyText += ` (${scorerText})`;
 
@@ -1066,35 +1133,52 @@
                     
                     if (comp.details && Array.isArray(comp.details)) {
                         comp.details.forEach(detail => {
-                            if (detail.type?.text === "Goal" || detail.scoringPlay || detail.goalValue > 0) {
-                                let playerName = detail.scorer?.athlete?.displayName 
-                                    || detail.athlete?.displayName 
-                                    || (detail.athletesInvolved && detail.athletesInvolved[0]?.displayName)
-                                    || "";
+                            let typeText = (detail.type?.text || "").toLowerCase();
+                            let textContent = (detail.text || "").toLowerCase();
 
-                                if (!playerName && detail.text) {
-                                    let cleanText = detail.text.replace(/scored.*\$/, '').trim();
-                                    if (cleanText && cleanText.toLowerCase() !== 'goal') {
-                                        playerName = cleanText;
-                                    }
+                            let isGoal = typeText.includes("goal") || detail.scoringPlay || detail.goalValue > 0;
+                            let isYellowRed = typeText.includes("yellow-red") || typeText.includes("gelb-rot") || textContent.includes("yellow-red");
+                            let isYellow = typeText.includes("yellow") || typeText.includes("gelbe karte") || textContent.includes("yellow card");
+                            let isRed = (typeText.includes("red") || textContent.includes("red card")) && !isYellowRed;
+
+                            let playerName = detail.scorer?.athlete?.displayName 
+                                || detail.athlete?.displayName 
+                                || (detail.athletesInvolved && detail.athletesInvolved[0]?.displayName)
+                                || "";
+
+                            if (!playerName && detail.text) {
+                                let cleanText = detail.text.replace(/scored.*\$/, '').trim();
+                                if (cleanText && cleanText.toLowerCase() !== 'goal') {
+                                    playerName = cleanText;
                                 }
+                            }
 
-                                if (!playerName) {
-                                    playerName = detail.team?.displayName || "Tor";
-                                }
+                            let clock = detail.clock?.displayValue || "";
+                            if (clock && !clock.endsWith("'")) clock += "'";
 
-                                let clock = detail.clock?.displayValue || "";
+                            if (isGoal) {
+                                if (!playerName) playerName = detail.team?.displayName || "Tor";
                                 let notes = "";
                                 if (detail.penalty) notes = " (Pen)";
                                 if (detail.ownGoal) notes = " (ET)";
 
-                                let goalEntry = clock ? `${playerName} (${clock}')` + notes : playerName;
+                                let goalEntry = clock ? `${playerName} (${clock})` + notes : playerName;
                                 latestScorerText = goalEntry;
 
                                 if (detail.team?.id === homeComp.team.id) {
                                     goalsHome.push(`⚽ ${goalEntry}`);
                                 } else if (detail.team?.id === awayComp.team.id) {
                                     goalsAway.push(`⚽ ${goalEntry}`);
+                                }
+                            } else if (isYellowRed || isYellow || isRed) {
+                                if (!playerName) playerName = "Spieler";
+                                let icon = isYellowRed ? "🟨🟥" : (isYellow ? "🟨" : "🟥");
+                                let cardEntry = `${icon} ${playerName} (${clock})`;
+
+                                if (detail.team?.id === homeComp.team.id) {
+                                    goalsHome.push(cardEntry);
+                                } else if (detail.team?.id === awayComp.team.id) {
+                                    goalsAway.push(cardEntry);
                                 }
                             }
                         });
@@ -1106,7 +1190,7 @@
                         if (prev !== undefined && isLive) {
                             if (homeScoreVal > prev.home || awayScoreVal > prev.away) {
                                 if (homeComp.team.displayName.toLowerCase().includes('dortmund') || awayComp.team.displayName.toLowerCase().includes('dortmund')) {
-                                    triggerGoalPush(homeComp.team.displayName, awayComp.team.displayName, homeScoreVal, awayScoreVal, latestScorerText);
+                                    triggerGoalPush(matchId, homeComp.team.displayName, awayComp.team.displayName, homeScoreVal, awayScoreVal, latestScorerText);
                                 }
                             }
                         }
@@ -1114,6 +1198,7 @@
                     }
 
                     leagueMatches[s].push({
+                        id: ev.id,
                         home: homeComp.team.displayName,
                         away: awayComp.team.displayName,
                         date: dateStr,
@@ -1139,6 +1224,7 @@
                 currentMatchday = 6;
             }
 
+            updateTopTicker(hasLive);
             if (showAlert) alert("ESPN Live-Daten erfolgreich synchronisiert!");
         } catch (e) {
             console.error("Fehler beim ESPN Sync:", e);
@@ -1146,6 +1232,69 @@
         }
 
         renderAll();
+    }
+
+    // AKTUALISIERTES LAUFBAND OBEN
+    function updateTopTicker(anyLive) {
+        let statusIcon = document.getElementById('tickerStatusIcon');
+        let tickerTitle = document.getElementById('tickerTitle');
+        let tickerContainer = document.getElementById('tickerContent');
+        tickerContainer.innerHTML = "";
+
+        if (anyLive) {
+            statusIcon.className = "live-dot";
+            tickerTitle.innerText = "🔴 Live-Spiel:";
+            
+            for (let mw = 1; mw <= 34; mw++) {
+                (leagueMatches[mw] || []).filter(m => m.isLive).forEach(m => {
+                    let isBVB = m.home.toLowerCase().includes('dortmund') || m.away.toLowerCase().includes('dortmund');
+                    let matchText = `⚡ ${m.home} ${m.homeScore ?? 0}:${m.awayScore ?? 0} ${m.away} ⚡`;
+                    
+                    let span = document.createElement('span');
+                    if (isBVB) {
+                        span.className = "ticker-bvb-match";
+                    } else {
+                        span.style.margin = "0 10px";
+                    }
+                    span.innerText = matchText;
+                    tickerContainer.appendChild(span);
+                });
+            }
+            if (tickerContainer.children.length === 0) {
+                tickerContainer.innerText = "Borussia Dortmund im Live-Modus";
+            }
+        } else {
+            statusIcon.className = "inline-block w-2 h-2 rounded-full bg-[var(--bvb-yellow)]";
+            tickerTitle.innerText = "📋 Spieltag-Ticker:";
+            
+            let currentMwMatches = leagueMatches[currentMatchday] || [];
+            if (currentMwMatches.length > 0) {
+                currentMwMatches.forEach((m, idx) => {
+                    let isBVB = m.home.toLowerCase().includes('dortmund') || m.away.toLowerCase().includes('dortmund');
+                    let score = (m.homeScore !== null && m.homeScore !== undefined) ? `${m.homeScore}:${m.awayScore}` : `(${m.time || '15:30'} Uhr)`;
+                    let matchText = `${m.home} ${score} ${m.away}`;
+
+                    let span = document.createElement('span');
+                    if (isBVB) {
+                        span.className = "ticker-bvb-match";
+                    } else {
+                        span.style.margin = "0 12px";
+                    }
+                    span.innerText = matchText;
+                    tickerContainer.appendChild(span);
+
+                    if (idx < currentMwMatches.length - 1) {
+                        let sep = document.createElement('span');
+                        sep.innerText = "⚽";
+                        sep.style.color = "var(--bvb-yellow)";
+                        sep.style.margin = "0 8px";
+                        tickerContainer.appendChild(sep);
+                    }
+                });
+            } else {
+                tickerContainer.innerText = "Borussia Dortmund — 1. Bundesliga Saison 2026/27 — Heja BVB!";
+            }
+        }
     }
 
     function changeMatchday(amount) {
@@ -1201,7 +1350,7 @@
             lastWidget.innerHTML = "Noch kein beendetes Spiel.";
         }
 
-        // --- FORMVERLAUF (Letzte 15 Spiele) ---
+        // --- FORMVERLAUF ---
         let formWidget = document.getElementById('formCurveWidget');
         if (pastMatches.length > 0) {
             let last15 = pastMatches.slice(-15);
@@ -1218,16 +1367,18 @@
             formWidget.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;">Noch keine beendeten Spiele</span>';
         }
 
-        // --- TOP 3 TORSCHÜTZEN KACHEL (BORUSSIA DORTMUND) ---
+        // --- TOP 3 TORSCHÜTZEN ---
         let bvbScorersMap = {};
         pastMatches.forEach(m => {
             let parseScorers = (gList, teamName) => {
                 if (teamName.toLowerCase().includes('dortmund') && Array.isArray(gList)) {
                     gList.forEach(g => {
-                        let clean = g.replace('⚽', '').replace('(Pen)', '').replace('(ET)', '').trim();
-                        let name = clean.split('(')[0].trim();
-                        if (name) {
-                            bvbScorersMap[name] = (bvbScorersMap[name] || 0) + 1;
+                        if (g.includes('⚽')) {
+                            let clean = g.replace('⚽', '').replace('(Pen)', '').replace('(ET)', '').trim();
+                            let name = clean.split('(')[0].trim();
+                            if (name) {
+                                bvbScorersMap[name] = (bvbScorersMap[name] || 0) + 1;
+                            }
                         }
                     });
                 }
@@ -1253,19 +1404,99 @@
             topScorersWidget.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;">Noch keine Torschützen erfasst</span>';
         }
 
-        let homeW = {p:0, s:0, u:0, n:0, pts:0};
-        let awayW = {p:0, s:0, u:0, n:0, pts:0};
-        pastMatches.forEach(m => {
-            let isHome = m.home.toLowerCase().includes('dortmund');
-            let myG = isHome ? m.homeScore : m.awayScore;
-            let oppG = isHome ? m.awayScore : m.homeScore;
-            let obj = isHome ? homeW : awayW;
-            obj.p++;
-            if (myG > oppG) { obj.s++; obj.pts += 3; }
-            else if (myG === oppG) { obj.u++; obj.pts += 1; }
-            else { obj.n++; }
+        // --- FORM-KÖNIG (LETZTE 5 SPIELE) WIDGET ---
+        updateFormKingWidget();
+    }
+
+    // BERECHNUNG DES FORM-KÖNIGS
+    function updateFormKingWidget() {
+        let allTeamsStats = {};
+        let allTeamsList = [];
+
+        Object.values(leagueMatches).forEach(matchList => {
+            if (Array.isArray(matchList)) {
+                matchList.forEach(m => {
+                    if (!allTeamsList.includes(m.home)) allTeamsList.push(m.home);
+                    if (!allTeamsList.includes(m.away)) allTeamsList.push(m.away);
+                });
+            }
         });
-        document.getElementById('homeAwayWidget').innerHTML = `Heim: ${homeW.s}S - ${homeW.u}U - ${homeW.n}N (${homeW.pts} Pkt)<br>Auswärts: ${awayW.s}S - ${awayW.u}U - ${awayW.n}N (${awayW.pts} Pkt)`;
+
+        allTeamsList.forEach(t => { allTeamsStats[t] = { name: t, matches: [] }; });
+
+        Object.values(leagueMatches).forEach(matchList => {
+            if (!Array.isArray(matchList)) return;
+            matchList.forEach(m => {
+                if (m.homeScore === null || m.homeScore === undefined || m.awayScore === null || m.awayScore === undefined) return;
+                let h = m.home, a = m.away;
+                if (!allTeamsStats[h] || !allTeamsStats[a]) return;
+
+                let hG = m.homeScore, aG = m.awayScore;
+                
+                let hRes = hG > aG ? 'S' : (hG === aG ? 'U' : 'N');
+                let hPts = hG > aG ? 3 : (hG === aG ? 1 : 0);
+                allTeamsStats[h].matches.push({ date: m.dateTime || m.date, pts: hPts, gf: hG, ga: aG, res: hRes });
+
+                let aRes = aG > hG ? 'S' : (aG === hG ? 'U' : 'N');
+                let aPts = aG > hG ? 3 : (aG === hG ? 1 : 0);
+                allTeamsStats[a].matches.push({ date: m.dateTime || m.date, pts: aPts, gf: aG, ga: hG, res: aRes });
+            });
+        });
+
+        let bestTeam = null;
+        let maxPtsL5 = -1;
+        let bestToreL5 = "0:0";
+        let bestSerieStr = "";
+
+        Object.values(allTeamsStats).forEach(team => {
+            team.matches.sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0));
+            let last5 = team.matches.slice(0, 5);
+            if (last5.length === 0) return;
+
+            let ptsSum = last5.reduce((acc, cur) => acc + cur.pts, 0);
+            let gfSum = last5.reduce((acc, cur) => acc + cur.gf, 0);
+            let gaSum = last5.reduce((acc, cur) => acc + cur.ga, 0);
+            let toreStr = `${gfSum}:${gaSum}`;
+            let serieStr = last5.slice().reverse().map(c => c.res).join('');
+
+            if (ptsSum > maxPtsL5) {
+                maxPtsL5 = ptsSum;
+                bestTeam = team.name;
+                bestToreL5 = toreStr;
+                bestSerieStr = serieStr;
+            }
+        });
+
+        let formKingWidget = document.getElementById('formKingWidget');
+        if (bestTeam) {
+            let logoUrl = teamLogos[bestTeam.trim().toLowerCase()] || "";
+            let logoHtml = logoUrl ? `<img src="${logoUrl}" alt="${bestTeam}" style="width: 22px; height: 22px; object-fit: contain; vertical-align: middle; margin-right: 6px;">` : '';
+            
+            let coloredSerie = bestSerieStr.split('').map(char => {
+                let color = char === 'S' ? '#2ea043' : (char === 'U' ? '#e3b341' : '#f85149');
+                return `<span style="background:${color}; color:#fff; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; border-radius:3px; font-weight:bold; font-size:0.75rem; margin-right:2px;">${char}</span>`;
+            }).join('');
+
+            formKingWidget.innerHTML = `
+                <div style="display: flex; align-items: center; font-weight: bold; font-size: 0.95rem; color: #ffffff; margin-bottom: 8px;">
+                    ${logoHtml}<span>${bestTeam}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                    <span style="color: var(--text-muted);">Punkte (L5):</span>
+                    <strong style="color: #3fb950;">${maxPtsL5} Pkt</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                    <span style="color: var(--text-muted);">Tore (L5):</span>
+                    <strong style="color: var(--bvb-yellow);">${bestToreL5}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; align-items: center; margin-top: 6px;">
+                    <span style="color: var(--text-muted);">Serie:</span>
+                    <div style="display:flex;">${coloredSerie}</div>
+                </div>
+            `;
+        } else {
+            formKingWidget.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Noch keine Spieldaten verfügbar</span>';
+        }
     }
 
     function updateCountdown() {
@@ -1319,11 +1550,13 @@
                 list.forEach(m => {
                     let parse = (gList, team) => {
                         gList.forEach(g => {
-                            let clean = g.replace('⚽', '').replace('(Pen)', '').replace('(ET)', '').trim();
-                            let name = clean.split('(')[0].trim();
-                            if (name) {
-                                if (!scorersMap[name]) scorersMap[name] = { count: 0, team: team };
-                                scorersMap[name].count++;
+                            if (g.includes('⚽')) {
+                                let clean = g.replace('⚽', '').replace('(Pen)', '').replace('(ET)', '').trim();
+                                let name = clean.split('(')[0].trim();
+                                if (name) {
+                                    if (!scorersMap[name]) scorersMap[name] = { count: 0, team: team };
+                                    scorersMap[name].count++;
+                                }
                             }
                         });
                     };
