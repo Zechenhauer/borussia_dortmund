@@ -988,7 +988,7 @@
                 auth: auth
             }, { onConflict: 'endpoint' });
 
-            alert("Push-Alarm für Borussia Dortmund erfolgreich aktiviert!");
+            alert("Push-Alarm für alle Bundesliga-Tore erfolgreich aktiviert!");
         } catch (error) {
             console.error('Fehler bei der Push-Registrierung:', error);
             alert("Fehler beim Aktivieren der Benachrichtigung: " + error.message);
@@ -1003,17 +1003,18 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     table: 'push_subscriptions_bvb',
-                    title: "🟡⚫ BVB Test-Tor-Alarm",
-                    body: "Das Test-Tor für Borussia Dortmund wurde erfolgreich ausgelöst!"
+                    title: "⚽ Bundesliga Test-Tor-Alarm",
+                    body: "Das Test-Tor wurde erfolgreich ausgelöst!"
                 })
             });
-            if (response.ok) alert("Test-Push für Borussia Dortmund erfolgreich ausgelöst!");
+            if (response.ok) alert("Test-Push erfolgreich ausgelöst!");
             else alert("Fehler von der Edge Function.");
         } catch (e) {
             alert("Netzwerkfehler: " + e.message);
         }
     }
 
+    // Push-Benachrichtigung mit Torschütze, Team und Spielminute für JEDES Spiel
     async function triggerGoalPush(matchId, home, away, hScore, aScore, scorerText = "") {
         try {
             let { data: existing } = await supabaseClient
@@ -1031,7 +1032,9 @@
                 .upsert({ match_id: matchId, home_score: hScore, away_score: aScore }, { onConflict: 'match_id' });
 
             let bodyText = `${home} vs ${away} — Spielstand: ${hScore}:${aScore}`;
-            if (scorerText) bodyText += ` (${scorerText})`;
+            if (scorerText) {
+                bodyText = `Tor! ${scorerText}\n${home} vs ${away} (${hScore}:${aScore})`;
+            }
 
             await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
                 method: 'POST',
@@ -1039,7 +1042,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     table: 'push_subscriptions_bvb',
-                    title: `🟡⚫ TOR FÜR BVB! (${hScore}:${aScore})`,
+                    title: `⚽ TOR IN DER BUNDESLIGA!`,
                     body: bodyText
                 })
             });
@@ -1158,12 +1161,13 @@
 
                             if (isGoal) {
                                 if (!playerName) playerName = detail.team?.displayName || "Tor";
+                                let teamNameForGoal = detail.team?.displayName || "";
                                 let notes = "";
                                 if (detail.penalty) notes = " (Pen)";
                                 if (detail.ownGoal) notes = " (ET)";
 
                                 let goalEntry = clock ? `${playerName} (${clock})` + notes : playerName;
-                                latestScorerText = goalEntry;
+                                latestScorerText = `${playerName} (${teamNameForGoal}, ${clock || 'Tor'})` + notes;
 
                                 if (detail.team?.id === homeComp.team.id) {
                                     goalsHome.push(`⚽ ${goalEntry}`);
@@ -1189,9 +1193,7 @@
                         let prev = previousEspnScores[matchId];
                         if (prev !== undefined && isLive) {
                             if (homeScoreVal > prev.home || awayScoreVal > prev.away) {
-                                if (homeComp.team.displayName.toLowerCase().includes('dortmund') || awayComp.team.displayName.toLowerCase().includes('dortmund')) {
-                                    triggerGoalPush(matchId, homeComp.team.displayName, awayComp.team.displayName, homeScoreVal, awayScoreVal, latestScorerText);
-                                }
+                                triggerGoalPush(matchId, homeComp.team.displayName, awayComp.team.displayName, homeScoreVal, awayScoreVal, latestScorerText);
                             }
                         }
                         previousEspnScores[matchId] = { home: homeScoreVal, away: awayScoreVal };
@@ -1261,7 +1263,7 @@
                 });
             }
             if (tickerContainer.children.length === 0) {
-                tickerContainer.innerText = "Borussia Dortmund im Live-Modus";
+                tickerContainer.innerText = "Bundesliga im Live-Modus";
             }
         } else {
             statusIcon.className = "inline-block w-2 h-2 rounded-full bg-[var(--bvb-yellow)]";
